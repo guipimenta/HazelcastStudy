@@ -52,9 +52,15 @@ public class HazelcastConfig {
     private static void configureMaps(Config config) {
         // Configure a specific map
         MapConfig userMapConfig = new MapConfig("users");
+
         userMapConfig.setBackupCount(1);
         userMapConfig.setAsyncBackupCount(0);
         userMapConfig.setTimeToLiveSeconds(3600); // 1 hour TTL
+        // Configure custom partitioning strategy
+//        PartitioningStrategyConfig partitioningStrategyConfig = new PartitioningStrategyConfig();
+//        partitioningStrategyConfig.setPartitioningStrategy(new HazelcastCustomPartitioningStrategy());
+//        userMapConfig.setPartitioningStrategyConfig(partitioningStrategyConfig);
+        logger.info("Custom partitioning strategy configured for map: users");
         
         // Configure eviction
         EvictionConfig evictionConfig = new EvictionConfig();
@@ -62,18 +68,9 @@ public class HazelcastConfig {
         evictionConfig.setMaxSizePolicy(MaxSizePolicy.PER_NODE);
         evictionConfig.setSize(1000);
         userMapConfig.setEvictionConfig(evictionConfig);
-        
-        // Configure indexes
-        userMapConfig.addIndexConfig(new IndexConfig(IndexType.HASH, "age"));
-        userMapConfig.addIndexConfig(new IndexConfig(IndexType.HASH, "email"));
+
         
         config.addMapConfig(userMapConfig);
-        
-        // Configure another map with different settings
-        MapConfig cacheMapConfig = new MapConfig("cache");
-        cacheMapConfig.setBackupCount(0);
-        cacheMapConfig.setTimeToLiveSeconds(300); // 5 minutes TTL
-        config.addMapConfig(cacheMapConfig);
     }
 
     private static void configureQueues(Config config) {

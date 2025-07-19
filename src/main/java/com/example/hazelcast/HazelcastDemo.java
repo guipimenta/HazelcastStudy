@@ -2,10 +2,14 @@ package com.example.hazelcast;
 
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.client.config.ClientConfig;
+import com.hazelcast.cluster.Member;
 import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
 import com.hazelcast.collection.IQueue;
+import com.hazelcast.partition.Partition;
+import com.hazelcast.partition.PartitionAware;
+import com.hazelcast.partition.PartitionService;
 import com.hazelcast.topic.ITopic;
 import com.hazelcast.topic.Message;
 import com.hazelcast.topic.MessageListener;
@@ -23,19 +27,18 @@ public class HazelcastDemo {
     public static void main(String[] args) {
         logger.info("Starting Hazelcast Demo...");
 
-        // Start a Hazelcast server instance
-        HazelcastInstance server = Hazelcast.newHazelcastInstance();
-        logger.info("Hazelcast server started");
+        // Start a Hazelcast server instance with custom configuration
+        HazelcastInstance server = HazelcastConfig.createConfiguredInstance();
+        logger.info("Hazelcast server started with custom configuration");
 
         // Create a client to connect to the server
-        ClientConfig clientConfig = new ClientConfig();
-        clientConfig.setClusterName("dev");
+        ClientConfig clientConfig = HazelcastConfig.createClientConfig();
         HazelcastInstance client = HazelcastClient.newHazelcastClient(clientConfig);
         logger.info("Hazelcast client connected");
 
         try {
             // Demo 1: Distributed Map
-            demoDistributedMap(client);
+            demoDistributedMap(client, server);
 
             // Demo 2: Distributed Queue
             demoDistributedQueue(client);
@@ -59,31 +62,36 @@ public class HazelcastDemo {
         }
     }
 
-    private static void demoDistributedMap(HazelcastInstance client) {
+    private static void demoDistributedMap(HazelcastInstance client, HazelcastInstance server) {
         logger.info("=== Demo 1: Distributed Map ===");
         
-        IMap<String, String> map = client.getMap("demo-map");
+        IMap<HazelcastPartitionAwareKey, String> map = server.getMap("users");
         
         // Put some data
-        map.put("key1", "value1");
-        map.put("key2", "value2");
-        map.put("key3", "value3");
+        map.put(new HazelcastPartitionAwareKey("key1", 1), "value1");
+        map.put(new HazelcastPartitionAwareKey("key2", 1), "value2");
+        map.put(new HazelcastPartitionAwareKey("key3", 2), "value3");
+        map.put(new HazelcastPartitionAwareKey("key4", 2), "value3");
+        map.put(new HazelcastPartitionAwareKey("key5", 3), "value3");
         
         logger.info("Put 3 entries into distributed map");
+
+
+        // Get the PartitionService
+        PartitionService partitionService = client.getPartitionService();
+
+        // Iterate over each map key
+        logger.info("=== Partition Information ===");
+        for (HazelcastPartitionAwareKey key : map.keySet()) {
+            Partition partition = partitionService.getPartition(key);
+            int partitionId = partition.getPartitionId();
+            Member owner = partition.getOwner();
+
+            logger.info("Key: '{}' | partition key: '{}' | Partition ID: {}  | Key Hash: {}",
+                    key.getVal(), key.getPartitionKey(), partitionId, key.getPartitionKey().hashCode());
+        }
         
-        // Get data
-        String value1 = map.get("key1");
-        logger.info("Retrieved value for key1: {}", value1);
-        
-        // Check size
-        logger.info("Map size: {}", map.size());
-        
-        // Use atomic operations
-        map.putIfAbsent("key4", "value4");
-        map.replace("key1", "value1", "updated-value1");
-        
-        logger.info("After atomic operations - Map size: {}", map.size());
-        logger.info("Updated value for key1: {}", map.get("key1"));
+        logger.info("ok");
     }
 
     private static void demoDistributedQueue(HazelcastInstance client) {
